@@ -26,16 +26,19 @@ You may want to confirm the Grype command line works, and has updated the vulner
 grype --version
 ```
 
-> grype 0.84.0
+```
+grype 0.84.0
+```
 
 
 ```shell
 grype db update
 ```
 
->  ✔ Vulnerability DB                [no update available]
-> No vulnerability database update available
-
+```
+  ✔ Vulnerability DB                [no update available]
+ No vulnerability database update available
+```
 
 ### Get Grummage
 
@@ -81,13 +84,15 @@ I use [Syft](https://github.com/anchore/syft) to generate SBOMs, but other tools
 syft nextcloud:latest -o syft-json=nextcloud-latest-syft-sbom.json
 ```
 
-> ✔ Loaded image       nextcloud:latest
-> ✔ Parsed image       sha256:44c884988b43e01e1434a66f58943dc809a193abf1a6df0f2cebad450e587ad7
-> ✔ Cataloged contents bdca3ed5b303726bba5579564ab8fe5df700d637ae04f00689443260b26cc832
->   ├── ✔ Packages                        [418 packages]
->   ├── ✔ File digests                    [10,605 files]
->   ├── ✔ File metadata                   [10,605 locations]
->   └── ✔ Executables                     [1,317 executables]
+```
+ ✔ Loaded image       nextcloud:latest
+ ✔ Parsed image       sha256:44c884988b43e01e1434a66f58943dc809a193abf1a6df0f2cebad450e587ad7
+ ✔ Cataloged contents bdca3ed5b303726bba5579564ab8fe5df700d637ae04f00689443260b26cc832
+   ├── ✔ Packages                        [418 packages]
+   ├── ✔ File digests                    [10,605 files]
+   ├── ✔ File metadata                   [10,605 locations]
+   └── ✔ Executables                     [1,317 executables]
+```
 
 ## Caveats
 
