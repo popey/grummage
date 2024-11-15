@@ -96,4 +96,4 @@ syft nextcloud:latest -o syft-json=nextcloud-latest-syft-sbom.json
 
 ## Caveats
 
-I am not a developer. This is all rather hastily written. No warranty is provided or implied.
+I am an open-source enthusiast and self-taught coder creating projects driven by curiosity and a love for problem-solving. The code may have bugs or sharp edges. Kindly let me know via in [issue](https://github.com/popey/grummage/issues). Thanks.
