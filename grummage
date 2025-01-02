@@ -17,7 +17,12 @@ class Grummage(App):
         ("t", "load_tree_by_package_type", "by Type"),
         ("e", "explain_vulnerability", "Explain Vuln"),
         ("q", "quit", "Quit"),
+        ("j", "simulate_key('down')", "Move down"),
+        ("k", "simulate_key('up')", "Move up"),
+        ("h", "simulate_key('left')", "Move left"),
+        ("l", "simulate_key('right')", "Move right"),
     ]
+
     def __init__(self, sbom_file=None):
         super().__init__()
         self.sbom_file = sbom_file
@@ -140,7 +145,7 @@ class Grummage(App):
             file_node = self.tree_view.root.add(file_name)
             for match in matches:
                 vuln_id = match["vulnerability"]["id"]
-                vuln_node = file_node.add(f"{vuln_id}")
+                vuln_node = file_node.add_leaf(f"{vuln_id}")
                 
                 # Store detailed info for right-hand pane display
                 vuln_node.data = {
@@ -170,7 +175,7 @@ class Grummage(App):
                 package_node = type_node.add(pkg_name)  # Add package name node
                 for match in matches:
                     vuln_id = match["vulnerability"]["id"]
-                    vuln_node = package_node.add(f"{vuln_id}")  # Add vulnerability ID under package name
+                    vuln_node = package_node.add_leaf(f"{vuln_id}")  # Add vulnerability ID under package name
                     
                     # Store detailed info for right-hand pane display
                     vuln_node.data = {
@@ -195,7 +200,7 @@ class Grummage(App):
             vuln_node = self.tree_view.root.add(vuln_id)
             for match in matches:
                 pkg_name = match["artifact"]["name"]
-                package_node = vuln_node.add(f"{pkg_name}")
+                package_node = vuln_node.add_leaf(f"{pkg_name}")
                 
                 # Store detailed info for right-hand pane display
                 package_node.data = {
@@ -228,7 +233,7 @@ class Grummage(App):
                 for match in severity_map[severity]:
                     vuln_id = match["vulnerability"]["id"]
                     package_name = match["artifact"]["name"]
-                    vuln_node = severity_node.add(f"{vuln_id} ({package_name})")
+                    vuln_node = severity_node.add_leaf(f"{vuln_id} ({package_name})")
                     
                     # Store detailed info in each node for later access in the right-hand pane
                     vuln_node.data = {
