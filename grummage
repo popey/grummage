@@ -4,10 +4,22 @@ import os
 import subprocess
 import sys
 import tempfile
+import re
 
 from textual.app import App
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Tree, Footer, Static
+from textual.widgets import Markdown
+
+def format_urls_as_markdown(text):
+    """Convert plain URLs in text to markdown links, skipping already formatted markdown links."""
+    # Skip URLs that are already in markdown format [text](url)
+    if re.search(r'\[.+?\]\(.+?\)', text):
+        return text
+    
+    # Convert plain URLs to markdown links
+    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+(?:/[^)\s]*)?'
+    return re.sub(url_pattern, lambda m: f'[{m.group()}]({m.group()})', text)
 
 def is_grype_installed():
     """Check if the grype binary is available in the system's PATH."""
@@ -72,7 +84,7 @@ class Grummage(App):
 
         # Initialize widgets for the tree view, details display, and status bar
         self.tree_view = Tree("Vulnerabilities")
-        self.details_display = Static("Select a node for more details.")
+        self.details_display = Markdown("Select a node for more details.")
         self.status_bar = Static("Status: Initializing...")
 
         # Create containers for tree view (left) and details (right) in a horizontal layout
@@ -301,25 +313,29 @@ class Grummage(App):
         node = event.node
         if node.data:
             details = node.data
-            self.selected_vuln_id = details["id"]  # Track the selected vulnerability ID for explanation
+            self.selected_vuln_id = details["id"]
             self.selected_package_name = details["package_name"]
             self.selected_package_version = details["package_version"]
             self.status_bar.update(f"Status: Selected {details['id']} in {details['package_name']} ({details['package_version']})")
             detail_text = (
-                f"ID: {details['id']}\n"
-                f"Package: {details['package_name']} ({details['package_version']})\n"
-                f"Severity: {details['severity']}\n"
-                f"Fix Version: {', '.join(details['fix_version'])}\n"
-                f"Related Vulnerabilities:\n"
+                f"# {details['id']}\n\n"
+                f"**Package:** {details['package_name']} ({details['package_version']})\n\n"
+                f"**Severity:** {details['severity']}\n\n"
+                f"**Fix Version:** {', '.join(details['fix_version'])}\n\n"
+                f"**Related Vulnerabilities:**\n\n"
             )
             for related in details["related"]:
-                detail_text += f"- {related['id']} ({related['dataSource']})\n"
+                detail_text += f"* {related['id']} ({related['dataSource']})\n"
+            
+            # Convert URLs to markdown links
+            detail_text = format_urls_as_markdown(detail_text)
+            
             self.debug_log(f"Displaying details for {details['id']}")
             self.details_display.update(detail_text)
             self.detailed_text = detail_text
         else:
             self.details_display.update("No data found for selected node.")
-            self.selected_vuln_id = None  # Clear selected vulnerability ID
+            self.selected_vuln_id = None
             self.selected_package_name = None
             self.selected_package_version = None
             self.debug_log("No data found for selected node.")
@@ -355,15 +371,20 @@ class Grummage(App):
             # Check and display the result in the details pane
             if explain_result.returncode == 0:
                 explanation = explain_result.stdout
-                details = self.detailed_text
-                self.details_display.update(f"{details}\nExplanation for {vuln_id}:\n\n{explanation}")
+                combined_text = (
+                    f"{self.detailed_text}\n\n\n"  # Add two blank lines for spacing
+                    f"## Explanation for {vuln_id}:\n\n"
+                    f"{explanation}"
+                )
+                combined_text = format_urls_as_markdown(combined_text)
+                self.details_display.update(combined_text)
                 self.debug_log(f"Displaying explanation for {vuln_id}")
             else:
-                self.details_display.update(f"Failed to explain {vuln_id}.\nError: {explain_result.stderr}")
+                self.details_display.update(f"# Error\n\nFailed to explain {vuln_id}.\n\nError: {explain_result.stderr}")
                 self.debug_log(f"Error explaining {vuln_id}: {explain_result.stderr}")
-
+                
         except Exception as e:
-            self.details_display.update(f"Error explaining {vuln_id}: {e}")
+            self.details_display.update(f"# Error\n\nError explaining {vuln_id}: {e}")
             self.debug_log(f"Exception in explain_vulnerability: {e}")
 
 
