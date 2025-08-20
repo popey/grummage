@@ -1,0 +1,39 @@
+name: grummage
+version: '0.1.0'
+summary: Interactive terminal frontend for Grype to view vulnerabilities.
+description: |
+  Grummage is an interactive terminal frontend for viewing vulnerabilities.
+  Grummage requires the availability of Grype to process a Software Bill of
+  Materials (SBOM) file and render the resulting vulnerability data.
+  It provides a consistent, user-friendly way to view and explore vuln
+  data with keyboard navigation and multiple view modes.
+
+base: core22
+confinement: strict
+grade: stable
+
+apps:
+  grummage:
+    command: bin/grummage
+    plugs:
+      - home
+      - removable-media
+      - network
+
+parts:
+  grummage:
+    plugin: python
+    source: .
+    python-packages:
+      - .
+    build-packages:
+      - python3-pip
+      - python3-setuptools
+      - curl
+    stage-packages:
+      - python3-setuptools
+      - curl
+    override-build: |
+      craftctl default
+      # Install grype
+      curl -sSfL https://get.anchore.io/grype | sh -s -- -b $CRAFT_PART_INSTALL/usr/bin

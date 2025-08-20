@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "grummage"
+version = "0.1.0"
+description = "Interactive terminal frontend for Grype to view vulnerabilities."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Alan Pope", email = "alan@popey.com" },
+]
+keywords = ["sbom", "security", "supply-chain", "tui", "terminal"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Terminals",
+    "Topic :: Text Processing :: Markup :: XML",
+]
+
+dependencies = [
+    "textual>=0.85.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/popey/grummage"
+Repository = "https://github.com/popey/grummage"
+Issues = "https://github.com/popey/grummage/issues"
+Documentation = "https://github.com/popey/grummage#readme"
+
+[project.scripts]
+grummage = "grummage:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+include = [
+    "grummage.py",
+    "README.md",
+    "LICENSE",
+]
+exclude = [
+    "*.pyc",
+    "__pycache__/",
+    "*.so",
+    "*.egg-info/",
+    ".git/",
+    ".github/",
+    "example_sboms/",
+    "*.json",
+    "*.gif",
+    "*.png",
+    "*.tape",
+    "*.txt",
+    "*.sh",
+    "test_*.py",
+    "test_env/",
+    "venv/",
+    "Formula/",
+]
