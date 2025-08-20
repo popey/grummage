@@ -14,7 +14,7 @@ So Grummage was born.
 
 ## Installation
 
-Grummage is written in Python, and uses the Textual library for the UI.
+Grummage is written in Python and requires Python 3.8 or later.
 
 ### Pre-requisites
 
@@ -30,7 +30,6 @@ grype --version
 grype 0.84.0
 ```
 
-
 ```shell
 grype db update
 ```
@@ -40,24 +39,67 @@ grype db update
  No vulnerability database update available
 ```
 
-### Get Grummage
+### From PyPI (Recommended)
 
-I use [uv](https://github.com/astral-sh/uv) to manage Python virtual environments. It's good. You might like it too.
+The easiest way to install grummage is from PyPI:
+
+```shell
+pip install grummage
+```
+
+### From GitHub Releases
+
+Download the latest release from the [GitHub releases page](https://github.com/popey/grummage/releases).
+
+### Using Homebrew (macOS/Linux)
+
+```shell
+brew tap popey/grummage
+brew install grummage
+```
+
+### Using Docker
+
+Note: `-it` is required for interaction with the application. Setting the `TERM` variable allows for better colour support.
+
+```shell
+docker run --rm -it -e TERM=xterm-256color -v $(pwd):/data ghcr.io/popey/grummage:latest /data/your-sbom.json
+```
+
+### Using Snap
+
+```shell
+sudo snap install grummage
+```
+
+### From Source
+
+For development or if you prefer to install from source:
+
+```shell
+git clone https://github.com/popey/grummage
+cd grummage
+pip install -e .
+```
+
+### Using uv (Alternative)
+
+If you use [uv](https://github.com/astral-sh/uv) for Python environment management:
 
 ```shell
 git clone https://github.com/popey/grummage
 cd grummage
 uv venv
-source ./venv/bin/activate
-uv pip install textual
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e .
 ```
 
 ## Usage
 
-Point grummage at an SBOM (Software Bill of Materials). 
+Point grummage at an SBOM (Software Bill of Materials):
 
 ```shell
-./grummage ./example_sboms/nextcloud-latest-syft-sbom.json
+grummage ./example_sboms/nextcloud-latest-syft-sbom.json
 ```
 
 Grummage will load the SBOM and pass it through Grype to build the vulnerability list. 
@@ -93,6 +135,16 @@ syft nextcloud:latest -o syft-json=nextcloud-latest-syft-sbom.json
    ├── ✔ File metadata                   [10,605 locations]
    └── ✔ Executables                     [1,317 executables]
 ```
+
+## Distribution
+
+Grummage is available through multiple distribution channels:
+
+- **PyPI**: `pip install grummage`
+- **Homebrew**: `brew tap popey/grummage && brew install grummage`
+- **Docker**: `ghcr.io/popey/grummage:latest`
+- **Snap**: `sudo snap install grummage`
+- **GitHub Releases**: Pre-built packages available
 
 ## Caveats
 
