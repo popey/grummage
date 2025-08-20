@@ -1,0 +1,14 @@
+include README.md
+include LICENSE
+include requirements.txt
+include grummage.py
+exclude *.pyc
+exclude test_*.py
+exclude *debug*.txt
+exclude *.json
+exclude *.gif
+exclude *.png
+exclude *.tape
+recursive-exclude example_sboms *
+recursive-exclude .github *
+recursive-exclude snap *
