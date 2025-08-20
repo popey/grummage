@@ -1,5 +1,5 @@
 name: grummage
-version: '0.1.0'
+version: '1.0.0'
 summary: Interactive terminal frontend for Grype to view vulnerabilities.
 description: |
   Grummage is an interactive terminal frontend for viewing vulnerabilities.
