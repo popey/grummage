@@ -14,6 +14,7 @@ grade: stable
 
 architectures:
   - build-on: [amd64, arm64, ppc64el, s390x]
+    build-for: [amd64, arm64, ppc64el, s390x]
 
 apps:
   grummage:
