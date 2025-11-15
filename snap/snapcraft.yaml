@@ -8,9 +8,15 @@ description: |
   It provides a consistent, user-friendly way to view and explore vuln
   data with keyboard navigation and multiple view modes.
 
-base: core22
+base: core24
 confinement: strict
 grade: stable
+
+platforms:
+  amd64:
+  arm64:
+  ppc64el:
+  s390x:
 
 apps:
   grummage:
