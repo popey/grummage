@@ -6,10 +6,13 @@ import sys
 import tempfile
 import re
 
+from textual import work
 from textual.app import App
-from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Tree, Footer, Static
+from textual.containers import Container, Horizontal, VerticalScroll, Vertical
+from textual.screen import ModalScreen
+from textual.widgets import Tree, Footer, Static, Label, LoadingIndicator
 from textual.widgets import Markdown
+from textual.worker import get_current_worker
 
 def format_urls_as_markdown(text):
     """Convert plain URLs in text to markdown links, skipping already formatted markdown links."""
@@ -49,6 +52,56 @@ def install_grype():
     except subprocess.CalledProcessError as e:
         print(f"Failed to install grype: {e}")
         sys.exit(1)
+
+class LoadingScreen(ModalScreen):
+    """Modal screen showing loading progress."""
+
+    DEFAULT_CSS = """
+    LoadingScreen {
+        align: center middle;
+    }
+
+    LoadingScreen > Vertical {
+        width: 60;
+        height: auto;
+        background: $surface;
+        border: thick $primary;
+        padding: 2;
+    }
+
+    LoadingScreen > Vertical > Label {
+        width: 100%;
+        content-align: center middle;
+        text-style: bold;
+    }
+
+    LoadingScreen > Vertical > #status {
+        width: 100%;
+        content-align: center middle;
+        margin-top: 1;
+    }
+
+    LoadingScreen > Vertical > LoadingIndicator {
+        width: 100%;
+        height: 3;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.status_label = Label("Initializing...", id="status")
+
+    def compose(self):
+        """Create child widgets for the loading screen."""
+        with Vertical():
+            yield Label("Grummage")
+            yield self.status_label
+            yield LoadingIndicator()
+
+    def update_status(self, message):
+        """Update the status message."""
+        self.status_label.update(message)
 
 class Grummage(App):
     BINDINGS = [
@@ -106,11 +159,76 @@ class Grummage(App):
         await self.mount(Footer())
         self.debug_log("on_mount: Layout mounted")
 
-        # Load the SBOM from file or stdin
+        # Show loading screen and load the SBOM from file or stdin
+        self.loading_screen = LoadingScreen()
+        await self.push_screen(self.loading_screen)
         await self.load_sbom()
 
-    async def load_sbom(self):
-        """Load the SBOM from a file or stdin."""
+    def check_grype_db(self):
+        """Check if grype vulnerability database needs updating."""
+        try:
+            result = subprocess.run(
+                ["grype", "db", "check", "-o", "json"],
+                capture_output=True,
+                text=True
+            )
+
+            db_status = json.loads(result.stdout)
+            return db_status.get("updateAvailable", False)
+        except Exception as e:
+            self.debug_log(f"Error checking grype database: {e}")
+            return False
+
+    def update_grype_db(self):
+        """Update the grype vulnerability database (blocking)."""
+        try:
+            self.debug_log("Starting grype database update")
+            result = subprocess.run(
+                ["grype", "db", "update"],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                self.notify("Vulnerability database updated successfully", severity="information")
+                self.debug_log("Grype database updated successfully")
+                return True
+            else:
+                self.notify(f"Database update failed: {result.stderr}", severity="error")
+                self.debug_log(f"Grype database update failed: {result.stderr}")
+                return False
+        except Exception as e:
+            self.notify(f"Database update error: {e}", severity="error")
+            self.debug_log(f"Exception during database update: {e}")
+            return False
+
+    def update_loading_status(self, message):
+        """Update both loading screen and status bar."""
+        if hasattr(self, 'loading_screen') and self.loading_screen:
+            self.loading_screen.update_status(message)
+        self.status_bar.update(f"Status: {message}")
+
+    @work(thread=True, exclusive=True)
+    def load_sbom_worker(self):
+        """Load SBOM and run grype analysis in worker thread."""
+        # Check and update grype database if needed
+        self.app.call_from_thread(self.update_loading_status, "Checking vulnerability database...")
+        self.debug_log("Checking grype database status")
+
+        if self.check_grype_db():
+            self.app.call_from_thread(self.update_loading_status, "Updating vulnerability database - this may take a minute...")
+            self.debug_log("Database update available, starting update")
+            if not self.update_grype_db():
+                # Update failed, abort
+                self.app.call_from_thread(self.update_loading_status, "Database update failed")
+                self.app.call_from_thread(self.notify, "Database update failed", severity="error")
+                self.app.call_from_thread(self.pop_screen)
+                return
+        else:
+            self.debug_log("Database is up to date")
+
+        # Load SBOM
+        self.app.call_from_thread(self.update_loading_status, "Loading SBOM file...")
         if self.sbom_file:
             # Load SBOM from the provided file path
             self.debug_log(f"Loading SBOM from file: {self.sbom_file}")
@@ -122,31 +240,26 @@ class Grummage(App):
                 sbom_json = json.load(sys.stdin)
             except json.JSONDecodeError as e:
                 self.debug_log(f"Error reading SBOM from stdin: {e}")
-                self.status_bar.update("Status: Failed to read SBOM from stdin.")
+                self.app.call_from_thread(self.update_loading_status, "Failed to read SBOM from stdin")
+                self.app.call_from_thread(self.notify, "Failed to read SBOM from stdin", severity="error")
+                self.app.call_from_thread(self.pop_screen)
                 return
 
-        # Run Grype analysis on the loaded SBOM JSON
-        self.vulnerability_report = self.call_grype(sbom_json)
-        if self.vulnerability_report and "matches" in self.vulnerability_report:
-            self.load_tree_by_package_name()
-            self.status_bar.update("Status: Vulnerability data loaded. Press N, T, V, S to change views, or E to explain.")
-            self.debug_log("Vulnerability data loaded into tree")
-        else:
-            self.status_bar.update("Status: No vulnerabilities found or unable to load data.")
-            self.debug_log("No vulnerability data found")
+        if not sbom_json:
+            self.app.call_from_thread(self.update_loading_status, "Failed to load SBOM")
+            self.app.call_from_thread(self.notify, "Failed to load SBOM", severity="error")
+            self.app.call_from_thread(self.pop_screen)
+            return
 
-    def load_json(self, file_path):
-        """Load SBOM JSON from a file."""
-        try:
-            with open(file_path, "r") as file:
-                return json.load(file)
-        except Exception as e:
-            self.debug_log(f"Error loading SBOM JSON: {e}")
-            return None
+        # Now run grype analysis (still in same worker thread)
+        self.run_grype_analysis(sbom_json)
 
-    def call_grype(self, sbom_json):
-        """Call Grype with the SBOM JSON to generate a vulnerability report."""
+    def run_grype_analysis(self, sbom_json):
+        """Run grype analysis on SBOM (called from worker thread)."""
         try:
+            self.app.call_from_thread(self.update_loading_status, "Analyzing SBOM with grype...")
+            self.debug_log("Starting grype analysis")
+
             # Create a temporary file to store the SBOM JSON
             with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.json') as temp_file:
                 json.dump(sbom_json, temp_file)
@@ -159,20 +272,61 @@ class Grummage(App):
                 text=True
             )
 
-            # Print stdout and stderr for debugging
-            #print("Grype STDOUT:", result.stdout)
-            #print("Grype STDERR:", result.stderr)
+            # Clean up temp file
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
 
             if result.returncode != 0:
-                print("Grype encountered an error:", result.stderr)
-                return None
+                self.debug_log(f"Grype encountered an error: {result.stderr}")
+                self.app.call_from_thread(self.update_loading_status, "Grype analysis failed")
+                self.app.call_from_thread(self.notify, f"Grype analysis failed: {result.stderr}", severity="error")
+                self.app.call_from_thread(self.pop_screen)
+                return
 
-            # Return the parsed JSON if no errors occurred
-            return json.loads(result.stdout)
+            # Parse the JSON result
+            vulnerability_report = json.loads(result.stdout)
+
+            # Update UI from thread
+            self.app.call_from_thread(self.on_grype_complete, vulnerability_report)
 
         except Exception as e:
-            print("Error running Grype:", e)
+            self.debug_log(f"Error running Grype: {e}")
+            self.app.call_from_thread(self.update_loading_status, "Error running grype")
+            self.app.call_from_thread(self.notify, f"Error running grype: {e}", severity="error")
+            self.app.call_from_thread(self.pop_screen)
+
+    async def load_sbom(self):
+        """Initiate SBOM loading and analysis."""
+        self.load_sbom_worker()
+
+    def load_json(self, file_path):
+        """Load SBOM JSON from a file."""
+        try:
+            with open(file_path, "r") as file:
+                return json.load(file)
+        except Exception as e:
+            self.debug_log(f"Error loading SBOM JSON: {e}")
             return None
+
+    def on_grype_complete(self, vulnerability_report):
+        """Handle completion of grype analysis (called from worker thread)."""
+        self.vulnerability_report = vulnerability_report
+
+        if self.vulnerability_report and "matches" in self.vulnerability_report:
+            num_vulns = len(self.vulnerability_report["matches"])
+            self.load_tree_by_package_name()
+            self.status_bar.update("Status: Vulnerability data loaded. Press N, T, V, S to change views, or E to explain.")
+            self.notify(f"Analysis complete - found {num_vulns} vulnerabilities", severity="information")
+            self.debug_log(f"Vulnerability data loaded into tree: {num_vulns} matches")
+        else:
+            self.status_bar.update("Status: No vulnerabilities found.")
+            self.notify("No vulnerabilities found", severity="information")
+            self.debug_log("No vulnerability data found")
+
+        # Dismiss the loading screen now that we're done
+        self.pop_screen()
     
     def load_tree_by_package_name(self):
         """Display vulnerabilities organized by package name."""
@@ -305,7 +459,7 @@ class Grummage(App):
             self.status_bar.update("Status: Viewing by severity.")
         elif key == "e" and self.selected_vuln_id and self.detailed_text:
              self.status_bar.update(f"Status: Explaining {self.selected_vuln_id} in {self.selected_package_name} ({self.selected_package_version})")
-             await self.explain_vulnerability(self.selected_vuln_id)
+             self.explain_vulnerability_worker(self.selected_vuln_id, self.detailed_text)
 
 
     async def on_tree_node_selected(self, event):
@@ -344,9 +498,13 @@ class Grummage(App):
         """Close the log file when the application exits."""
         self.debug_log_file.close()
 
-    async def explain_vulnerability(self, vuln_id):
-        """Call Grype to explain a vulnerability by its ID and display the output."""
+    @work(thread=True, exclusive=True)
+    def explain_vulnerability_worker(self, vuln_id, detailed_text):
+        """Call Grype to explain a vulnerability by its ID (worker thread)."""
         try:
+            self.app.call_from_thread(self.notify, f"Requesting explanation for {vuln_id}...", severity="information")
+            self.debug_log(f"Starting grype explain for {vuln_id}")
+
             # First, run Grype on the user-provided SBOM file to get the JSON report
             analyze_result = subprocess.run(
                 ["grype", self.sbom_file, "-o", "json"],
@@ -356,8 +514,12 @@ class Grummage(App):
 
             # Check if the SBOM analysis was successful
             if analyze_result.returncode != 0:
-                self.details_display.update(f"Error analyzing SBOM: {analyze_result.stderr}")
                 self.debug_log(f"Error analyzing SBOM for explanation: {analyze_result.stderr}")
+                self.app.call_from_thread(
+                    self.details_display.update,
+                    f"# Error\n\nError analyzing SBOM: {analyze_result.stderr}"
+                )
+                self.app.call_from_thread(self.notify, "Failed to analyze SBOM for explanation", severity="error")
                 return
 
             # Run Grype's explain command with the specific vulnerability ID
@@ -372,19 +534,24 @@ class Grummage(App):
             if explain_result.returncode == 0:
                 explanation = explain_result.stdout
                 combined_text = (
-                    f"{self.detailed_text}\n\n\n"  # Add two blank lines for spacing
+                    f"{detailed_text}\n\n\n"  # Add two blank lines for spacing
                     f"## Explanation for {vuln_id}:\n\n"
                     f"{explanation}"
                 )
                 combined_text = format_urls_as_markdown(combined_text)
-                self.details_display.update(combined_text)
+                self.app.call_from_thread(self.details_display.update, combined_text)
+                self.app.call_from_thread(self.notify, f"Explanation for {vuln_id} loaded", severity="information")
                 self.debug_log(f"Displaying explanation for {vuln_id}")
             else:
-                self.details_display.update(f"# Error\n\nFailed to explain {vuln_id}.\n\nError: {explain_result.stderr}")
+                error_text = f"# Error\n\nFailed to explain {vuln_id}.\n\nError: {explain_result.stderr}"
+                self.app.call_from_thread(self.details_display.update, error_text)
+                self.app.call_from_thread(self.notify, f"Failed to explain {vuln_id}", severity="error")
                 self.debug_log(f"Error explaining {vuln_id}: {explain_result.stderr}")
-                
+
         except Exception as e:
-            self.details_display.update(f"# Error\n\nError explaining {vuln_id}: {e}")
+            error_text = f"# Error\n\nError explaining {vuln_id}: {e}"
+            self.app.call_from_thread(self.details_display.update, error_text)
+            self.app.call_from_thread(self.notify, f"Error explaining {vuln_id}", severity="error")
             self.debug_log(f"Exception in explain_vulnerability: {e}")
 
 

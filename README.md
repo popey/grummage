@@ -102,8 +102,9 @@ Point grummage at an SBOM (Software Bill of Materials):
 grummage ./example_sboms/nextcloud-latest-syft-sbom.json
 ```
 
-Grummage will load the SBOM and pass it through Grype to build the vulnerability list. 
-Use the cursor keys or mouse to navigate the tree on the left pane.
+Grummage will check the grype vulnerability database, update it if needed, then load the SBOM and analyze it with Grype. A loading screen shows progress during these operations.
+
+Once loaded, use the cursor keys or mouse to navigate the tree on the left pane.
 Press Enter or mouse click on a vulnerability to obtain limited details.
 
 ### Keys:
