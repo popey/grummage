@@ -109,15 +109,24 @@ Press Enter or mouse click on a vulnerability to obtain limited details.
 
 ### Keys:
 
+**Navigation:**
+* Arrow keys or `h`/`j`/`k`/`l` - Navigate the tree
+* Enter - Select item
+
+**Views:**
+* `p` - View by package name
+* `v` - View by vulnerability ID
+* `t` - View by package type
+* `s` - View by severity
+
+**Search:**
+* `/` - Search within current view
+* `n` - Find next result
+* `N` - Find previous result
+
+**Actions:**
 * `e` - Request further details via `grype explain`
 * `q` - Quit
-
-Sort by:
-
-* `n` - Name of package
-* `v` - Vulnerability ID
-* `t` - Type of package
-* `s` - Severity of issue
 
 ## Making SBOMs
 
