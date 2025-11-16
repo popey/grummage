@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import json
 import os
 import subprocess
@@ -819,42 +820,43 @@ class Grummage(App):
 
 def main():
     """Main entry point for the grummage CLI."""
-    # Handle help first, regardless of argument count
-    if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h', 'help']:
-        print("Grummage - Interactive terminal frontend for Grype to view vulnerabilities")
-        print("")
-        print("Usage: grummage <sbom-file>")
-        print("")
-        print("Navigation:")
-        print("  • Arrow keys or h/j/k/l - Navigate")
-        print("  • Enter - Select item")
-        print("")
-        print("Views:")
-        print("  • p - View by Package name")
-        print("  • t - View by Type")
-        print("  • v - View by Vulnerability")
-        print("  • s - View by Severity")
-        print("")
-        print("Search:")
-        print("  • / - Search within current view")
-        print("  • n - Find next result")
-        print("  • N - Find previous result")
-        print("")
-        print("Actions:")
-        print("  • e - Explain vulnerability (when available)")
-        print("  • q - Quit")
-        print("")
-        print("Example:")
-        print("  grummage my-app.spdx.json")
-        sys.exit(0)
-    
-    if len(sys.argv) != 2:
-        print("Usage: grummage <sbom-file>")
-        print("Use 'grummage --help' for more information")
-        sys.exit(1)
-        
-    sbom_file = sys.argv[1]
-    
+    parser = argparse.ArgumentParser(
+        prog="grummage",
+        description="Interactive terminal frontend for Grype to view vulnerabilities",
+        epilog="Example: grummage my-app.spdx.json",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
+    parser.add_argument(
+        "sbom_file",
+        help="Path to the SBOM file to analyze"
+    )
+
+    # Add custom help text for navigation with updated keybindings
+    parser.epilog = """Navigation:
+  • Arrow keys or h/j/k/l - Navigate
+  • Enter - Select item
+
+Views:
+  • p - View by Package name
+  • v - View by Vulnerability
+  • t - View by Type
+  • s - View by Severity
+
+Search:
+  • / - Search within current view
+  • n - Find next result
+  • N - Find previous result
+
+Actions:
+  • e - Explain vulnerability (when available)
+  • q - Quit
+
+Example:
+  grummage my-app.spdx.json"""
+
+    args = parser.parse_args()
+    sbom_file = args.sbom_file
     if not is_grype_installed():
         if prompt_install_grype():
             install_grype()
@@ -863,8 +865,8 @@ def main():
                 "The grype binary is not located in $PATH and the option to install was deferred."
             )
             sys.exit(0)
-    
-    Grummage(sbom_file).run()
+
+    Grummage(args.sbom_file).run()
 
 if __name__ == "__main__":
     main()
