@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import re
+import urllib.request
 
 from textual import work
 from textual.app import App
@@ -24,6 +25,10 @@ def format_urls_as_markdown(text):
     url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+(?:/[^)\s]*)?'
     return re.sub(url_pattern, lambda m: f'[{m.group()}]({m.group()})', text)
 
+def is_running_in_snap():
+    """Check if grummage is running inside a snap package."""
+    return any(key.startswith("SNAP_") for key in os.environ)
+
 def is_grype_installed():
     """Check if the grype binary is available in the system's PATH."""
     return any(
@@ -31,6 +36,55 @@ def is_grype_installed():
         and os.access(os.path.join(path, "grype"), os.X_OK)
         for path in os.environ["PATH"].split(os.pathsep)
     )
+
+def get_grype_version():
+    """Get the installed grype version."""
+    try:
+        result = subprocess.run(
+            ["grype", "version"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            # Parse output like "Application: grype Version: 0.97.0"
+            for line in result.stdout.splitlines():
+                if "Version:" in line:
+                    version = line.split("Version:")[1].strip()
+                    # Remove 'v' prefix if present
+                    return version.lstrip('v')
+        return None
+    except Exception:
+        return None
+
+def get_latest_grype_version():
+    """Check the latest grype version from anchore toolbox."""
+    try:
+        req = urllib.request.Request(
+            "https://toolbox-data.anchore.io/grype/releases/latest/VERSION",
+            headers={"User-Agent": "grummage"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            version = response.read().decode('utf-8').strip()
+            # Remove 'v' prefix if present
+            return version.lstrip('v')
+    except Exception:
+        return None
+
+def compare_versions(current, latest):
+    """Compare two version strings. Returns True if latest is newer than current."""
+    try:
+        # Split versions into parts and compare
+        current_parts = [int(x) for x in current.split('.')]
+        latest_parts = [int(x) for x in latest.split('.')]
+
+        # Pad shorter version with zeros
+        max_len = max(len(current_parts), len(latest_parts))
+        current_parts.extend([0] * (max_len - len(current_parts)))
+        latest_parts.extend([0] * (max_len - len(latest_parts)))
+
+        return latest_parts > current_parts
+    except Exception:
+        return False
 
 def prompt_install_grype():
     """Prompt the user to install grype if it's not installed."""
@@ -215,6 +269,28 @@ class Grummage(App):
     @work(thread=True, exclusive=True)
     def load_sbom_worker(self):
         """Load SBOM and run grype analysis in worker thread."""
+        # Check grype binary version (skip if running in snap)
+        if not is_running_in_snap():
+            self.app.call_from_thread(self.update_loading_status, "Checking grype version...")
+            self.debug_log("Checking grype binary version")
+
+            current_version = get_grype_version()
+            latest_version = get_latest_grype_version()
+
+            if current_version and latest_version:
+                self.debug_log(f"Grype version: current={current_version}, latest={latest_version}")
+                if compare_versions(current_version, latest_version):
+                    self.app.call_from_thread(
+                        self.notify,
+                        f"Grype update available: v{latest_version} (installed: v{current_version})",
+                        severity="warning"
+                    )
+                    self.debug_log(f"Grype update available: {current_version} -> {latest_version}")
+            else:
+                self.debug_log("Could not check grype version")
+        else:
+            self.debug_log("Running in snap, skipping grype version check")
+
         # Check and update grype database if needed
         self.app.call_from_thread(self.update_loading_status, "Checking vulnerability database...")
         self.debug_log("Checking grype database status")
