@@ -436,7 +436,7 @@ class Grummage(App):
     def load_json(self, file_path):
         """Load SBOM JSON from a file."""
         try:
-            with open(file_path, "r") as file:
+            with open(file_path, "r", encoding="utf-8") as file:
                 return json.load(file)
         except Exception as e:
             self.debug_log(f"Error loading SBOM JSON: {e}")
