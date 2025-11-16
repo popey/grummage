@@ -86,5 +86,5 @@ permissions:
    actions: read
    # Require writing security events to upload SARIF file to security tab
    security-events: write
-   # Read commit contents
-   contents: read
+   # Write permissions to upload release assets
+   contents: write
