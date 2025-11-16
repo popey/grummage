@@ -122,6 +122,10 @@ class Grummage(App):
         self.sbom_file = sbom_file
         self.vulnerability_report = None
         self.debug_log_file = open("debug_log.txt", "w")
+        self.selected_vuln_id = None
+        self.selected_package_name = None
+        self.selected_package_version = None
+        self.detailed_text = None
 
     def quit(self):
         """Exit the application."""
