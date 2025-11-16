@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import json
 import os
 import subprocess
@@ -637,33 +638,34 @@ class Grummage(App):
 
 def main():
     """Main entry point for the grummage CLI."""
-    # Handle help first, regardless of argument count
-    if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h', 'help']:
-        print("Grummage - Interactive terminal frontend for Grype to view vulnerabilities")
-        print("")
-        print("Usage: grummage <sbom-file>")
-        print("")
-        print("Navigation:")
-        print("  • Arrow keys or h/j/k/l - Navigate")
-        print("  • Enter - Select item")
-        print("  • n - View by Name")
-        print("  • t - View by Type")
-        print("  • s - View by Severity")
-        print("  • / - Search")
-        print("  • e - Explain vulnerability (when available)")
-        print("  • q - Quit")
-        print("")
-        print("Example:")
-        print("  grummage my-app.spdx.json")
-        sys.exit(0)
-    
-    if len(sys.argv) != 2:
-        print("Usage: grummage <sbom-file>")
-        print("Use 'grummage --help' for more information")
-        sys.exit(1)
-        
-    sbom_file = sys.argv[1]
-    
+    parser = argparse.ArgumentParser(
+        prog="grummage",
+        description="Interactive terminal frontend for Grype to view vulnerabilities",
+        epilog="Example: grummage my-app.spdx.json",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
+    parser.add_argument(
+        "sbom_file",
+        help="Path to the SBOM file to analyze"
+    )
+
+    # Add custom help text for navigation
+    parser.epilog = """Navigation:
+  • Arrow keys or h/j/k/l - Navigate
+  • Enter - Select item
+  • n - View by Name
+  • t - View by Type
+  • s - View by Severity
+  • / - Search
+  • e - Explain vulnerability (when available)
+  • q - Quit
+
+Example:
+  grummage my-app.spdx.json"""
+
+    args = parser.parse_args()
+
     if not is_grype_installed():
         if prompt_install_grype():
             install_grype()
@@ -672,8 +674,8 @@ def main():
                 "The grype binary is not located in $PATH and the option to install was deferred."
             )
             sys.exit(0)
-    
-    Grummage(sbom_file).run()
+
+    Grummage(args.sbom_file).run()
 
 if __name__ == "__main__":
     main()
