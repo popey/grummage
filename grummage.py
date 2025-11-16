@@ -12,7 +12,7 @@ from textual import work
 from textual.app import App
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Tree, Footer, Static, Label, LoadingIndicator
+from textual.widgets import Tree, Footer, Static, Label, LoadingIndicator, Input
 from textual.widgets import Markdown
 from textual.worker import get_current_worker
 
@@ -158,13 +158,60 @@ class LoadingScreen(ModalScreen):
         """Update the status message."""
         self.status_label.update(message)
 
+class SearchModal(ModalScreen):
+    """Modal screen for searching in the tree."""
+
+    DEFAULT_CSS = """
+    SearchModal {
+        align: center middle;
+    }
+
+    SearchModal > Container {
+        width: 60;
+        height: auto;
+        background: $surface;
+        border: thick $primary;
+        padding: 1;
+    }
+
+    SearchModal > Container > Label {
+        width: 100%;
+        content-align: center middle;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+
+    SearchModal > Container > Input {
+        width: 100%;
+    }
+    """
+
+    def compose(self):
+        """Create child widgets for the search modal."""
+        with Container():
+            yield Label("Search")
+            yield Input(placeholder="Enter search term...", id="search_input")
+
+    def on_mount(self):
+        """Focus the input when modal opens."""
+        self.query_one("#search_input", Input).focus()
+
+    def on_input_submitted(self, event):
+        """Handle search submission."""
+        search_term = event.value.strip()
+        if search_term:
+            self.dismiss(search_term)
+        else:
+            self.dismiss(None)
+
 class Grummage(App):
     BINDINGS = [
         ("v", "load_tree_by_vulnerability", "by Vuln"),
-        ("n", "load_tree_by_package_name", "by Pkg Name"),
+        ("p", "load_tree_by_package_name", "by Pkg Name"),
         ("s", "load_tree_by_severity", "by Severity"),
         ("t", "load_tree_by_package_type", "by Type"),
         ("e", "explain_vulnerability", "Explain Vuln"),
+        ("/", "search", "Search"),
         ("q", "quit", "Quit"),
         ("j", "simulate_key('down')", "Move down"),
         ("k", "simulate_key('up')", "Move up"),
@@ -181,6 +228,10 @@ class Grummage(App):
         self.selected_package_name = None
         self.selected_package_version = None
         self.detailed_text = None
+        self.view_mode = "by_package"  # Track current view mode
+        self.search_term = None  # Current search term
+        self.search_results = []  # List of matching nodes
+        self.search_index = -1  # Current position in search results
 
     def quit(self):
         """Exit the application."""
@@ -195,7 +246,7 @@ class Grummage(App):
         self.debug_log("on_mount: Starting application setup")
 
         # Initialize widgets for the tree view, details display, and status bar
-        self.tree_view = Tree("Vulnerabilities")
+        self.tree_view = Tree("Packages")  # Default to "Packages" since default view is by_package
         self.details_display = Markdown("Select a node for more details.")
         self.status_bar = Static("Status: Initializing...")
 
@@ -411,7 +462,11 @@ class Grummage(App):
     
     def load_tree_by_package_name(self):
         """Display vulnerabilities organized by package name."""
+        self.view_mode = "by_package"
+        self.search_results = []  # Clear search when changing views
+        self.search_index = -1
         self.tree_view.clear()
+        self.tree_view.root.label = "Packages"
         file_name_map = {}
         for match in self.vulnerability_report["matches"]:
             file_name = match["artifact"]["name"]
@@ -422,7 +477,7 @@ class Grummage(App):
             for match in matches:
                 vuln_id = match["vulnerability"]["id"]
                 vuln_node = file_node.add_leaf(f"{vuln_id}")
-                
+
                 # Store detailed info for right-hand pane display
                 vuln_node.data = {
                     "id": vuln_id,
@@ -433,9 +488,16 @@ class Grummage(App):
                     "related": match.get("relatedVulnerabilities", [])
                 }
 
+        # Expand root to show the tree
+        self.tree_view.root.expand()
+
     def load_tree_by_type(self):
         """Display vulnerabilities organized by package type, with package names under each type."""
+        self.view_mode = "by_type"
+        self.search_results = []  # Clear search when changing views
+        self.search_index = -1
         self.tree_view.clear()
+        self.tree_view.root.label = "Package Types"
         type_map = {}
 
         # Organize matches by package type and then by package name
@@ -452,7 +514,7 @@ class Grummage(App):
                 for match in matches:
                     vuln_id = match["vulnerability"]["id"]
                     vuln_node = package_node.add_leaf(f"{vuln_id}")  # Add vulnerability ID under package name
-                    
+
                     # Store detailed info for right-hand pane display
                     vuln_node.data = {
                         "id": vuln_id,
@@ -463,10 +525,17 @@ class Grummage(App):
                         "related": match.get("relatedVulnerabilities", [])
                     }
 
+        # Expand root to show the tree
+        self.tree_view.root.expand()
+
 
     def load_tree_by_vulnerability(self):
         """Display vulnerabilities organized by vulnerability ID."""
+        self.view_mode = "by_vuln"
+        self.search_results = []  # Clear search when changing views
+        self.search_index = -1
         self.tree_view.clear()
+        self.tree_view.root.label = "Vulnerabilities"
         vuln_map = {}
         for match in self.vulnerability_report["matches"]:
             vuln_id = match["vulnerability"]["id"]
@@ -477,7 +546,7 @@ class Grummage(App):
             for match in matches:
                 pkg_name = match["artifact"]["name"]
                 package_node = vuln_node.add_leaf(f"{pkg_name}")
-                
+
                 # Store detailed info for right-hand pane display
                 package_node.data = {
                     "id": vuln_id,
@@ -488,12 +557,19 @@ class Grummage(App):
                     "related": match.get("relatedVulnerabilities", [])
                 }
 
+        # Expand root to show the tree
+        self.tree_view.root.expand()
+
     def load_tree_by_severity(self):
         """Display vulnerabilities organized by severity, in fixed order."""
+        self.view_mode = "by_severity"
+        self.search_results = []  # Clear search when changing views
+        self.search_index = -1
         self.tree_view.clear()
+        self.tree_view.root.label = "Severity Levels"
         # Define the desired order for severities
         severity_order = ["Critical", "High", "Medium", "Low", "Negligible", "Unknown"]
-        
+
         # Create a dictionary mapping each severity to its matches
         severity_map = {severity: [] for severity in severity_order}
         for match in self.vulnerability_report["matches"]:
@@ -501,7 +577,7 @@ class Grummage(App):
             if severity not in severity_map:
                 severity = "Unknown"  # Assign unknown severity if it's not one of the predefined categories
             severity_map[severity].append(match)
-        
+
         # Add nodes in the specified order with full vulnerability data for each node
         for severity in severity_order:
             if severity_map[severity]:  # Only add if there are matches
@@ -510,7 +586,7 @@ class Grummage(App):
                     vuln_id = match["vulnerability"]["id"]
                     package_name = match["artifact"]["name"]
                     vuln_node = severity_node.add_leaf(f"{vuln_id} ({package_name})")
-                    
+
                     # Store detailed info in each node for later access in the right-hand pane
                     vuln_node.data = {
                         "id": vuln_id,
@@ -521,24 +597,46 @@ class Grummage(App):
                         "related": match.get("relatedVulnerabilities", [])
                     }
 
+        # Expand root to show the tree
+        self.tree_view.root.expand()
+
 
 
     async def on_key(self, event):
-        """Handle key press events to switch views."""
-        key = event.key.lower()
+        """Handle key press events to switch views and search."""
+        key = event.key
+
+        # Handle search navigation (n and N are dedicated to search)
         if key == "n":
+            # Find next search result
+            if self.search_results:
+                self.find_next()
+            else:
+                self.notify("No active search. Press '/' to search.", severity="information")
+            return
+        elif key == "N":
+            # Find previous search result (Shift+N)
+            if self.search_results:
+                self.find_previous()
+            else:
+                self.notify("No active search. Press '/' to search.", severity="information")
+            return
+
+        # Handle view switching and other commands
+        key_lower = key.lower()
+        if key_lower == "p":
             self.load_tree_by_package_name()
             self.status_bar.update("Status: Viewing by package name.")
-        elif key == "t":
+        elif key_lower == "t":
             self.load_tree_by_type()
             self.status_bar.update("Status: Viewing by package type.")
-        elif key == "v":
+        elif key_lower == "v":
             self.load_tree_by_vulnerability()
             self.status_bar.update("Status: Viewing by vulnerability ID.")
-        elif key == "s":
+        elif key_lower == "s":
             self.load_tree_by_severity()
             self.status_bar.update("Status: Viewing by severity.")
-        elif key == "e" and self.selected_vuln_id and self.detailed_text:
+        elif key_lower == "e" and self.selected_vuln_id and self.detailed_text:
              self.status_bar.update(f"Status: Explaining {self.selected_vuln_id} in {self.selected_package_name} ({self.selected_package_version})")
              self.explain_vulnerability_worker(self.selected_vuln_id, self.detailed_text)
 
@@ -574,6 +672,90 @@ class Grummage(App):
             self.selected_package_name = None
             self.selected_package_version = None
             self.debug_log("No data found for selected node.")
+
+    async def action_search(self):
+        """Open search modal and perform search."""
+        async def handle_search_result(search_term):
+            if search_term:
+                await self.perform_search(search_term)
+
+        await self.push_screen(SearchModal(), callback=handle_search_result)
+
+    async def perform_search(self, search_term):
+        """Search for nodes matching the search term in the current tree."""
+        self.search_term = search_term
+        self.search_results = []
+        self.search_index = -1
+
+        # Search through all nodes in the tree
+        def search_nodes(node):
+            """Recursively search through tree nodes."""
+            # Get the label text
+            label_text = str(node.label).lower()
+            search_lower = search_term.lower()
+
+            # Check if this node matches
+            if search_lower in label_text and node != self.tree_view.root:
+                self.search_results.append(node)
+
+            # Search children
+            for child in node.children:
+                search_nodes(child)
+
+        # Start search from root
+        search_nodes(self.tree_view.root)
+
+        if self.search_results:
+            self.search_index = 0
+            # Use call_after_refresh to ensure the tree is ready
+            self.call_after_refresh(self.select_search_result)
+            self.status_bar.update(f"Status: Found {len(self.search_results)} results for '{search_term}'. Press 'n' for next, 'N' for previous.")
+            self.notify(f"Found {len(self.search_results)} results", severity="information")
+            self.debug_log(f"Search for '{search_term}' found {len(self.search_results)} results")
+        else:
+            self.status_bar.update(f"Status: No results found for '{search_term}'")
+            self.notify(f"No results found for '{search_term}'", severity="warning")
+            self.debug_log(f"Search for '{search_term}' found no results")
+
+    def find_next(self):
+        """Navigate to the next search result."""
+        if not self.search_results:
+            return
+
+        self.search_index = (self.search_index + 1) % len(self.search_results)
+        self.select_search_result()
+
+    def find_previous(self):
+        """Navigate to the previous search result."""
+        if not self.search_results:
+            return
+
+        self.search_index = (self.search_index - 1) % len(self.search_results)
+        self.select_search_result()
+
+    def select_search_result(self):
+        """Select and focus on the current search result."""
+        if not self.search_results or self.search_index < 0:
+            return
+
+        node = self.search_results[self.search_index]
+
+        # Expand parent nodes to make this node visible
+        current = node.parent
+        while current and current != self.tree_view.root:
+            current.expand()
+            current = current.parent
+
+        # Select the node
+        self.tree_view.select_node(node)
+        node.expand()
+
+        # Update status
+        self.status_bar.update(
+            f"Status: Result {self.search_index + 1}/{len(self.search_results)} for '{self.search_term}' - "
+            f"Press 'n' for next, 'N' for previous"
+        )
+        self.debug_log(f"Navigated to search result {self.search_index + 1}/{len(self.search_results)}")
 
     def on_unmount(self):
         """Close the log file when the application exits."""
@@ -650,14 +832,23 @@ def main():
         help="Path to the SBOM file to analyze"
     )
 
-    # Add custom help text for navigation
+    # Add custom help text for navigation with updated keybindings
     parser.epilog = """Navigation:
   • Arrow keys or h/j/k/l - Navigate
   • Enter - Select item
-  • n - View by Name
+
+Views:
+  • p - View by Package name
+  • v - View by Vulnerability
   • t - View by Type
   • s - View by Severity
-  • / - Search
+
+Search:
+  • / - Search within current view
+  • n - Find next result
+  • N - Find previous result
+
+Actions:
   • e - Explain vulnerability (when available)
   • q - Quit
 
@@ -665,7 +856,7 @@ Example:
   grummage my-app.spdx.json"""
 
     args = parser.parse_args()
-
+    sbom_file = args.sbom_file
     if not is_grype_installed():
         if prompt_install_grype():
             install_grype()
