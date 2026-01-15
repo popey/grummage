@@ -66,6 +66,25 @@ Note: `-it` is required for interaction with the application. Setting the `TERM`
 docker run --rm -it -e TERM=xterm-256color -v $(pwd):/data ghcr.io/popey/grummage:latest /data/your-sbom.json
 ```
 
+### Using Nix (macOS/Linux)
+
+Imperative installation
+
+```shell
+# using channels
+nix-env -iA grummage
+# OR with nix flakes
+nix profile install nixpkgs#grummage
+```
+
+Declarative installation
+
+```nix
+environment.systemPackages = with pkgs; [
+  grummage
+];
+```
+
 ### Using Snap
 
 ```shell
