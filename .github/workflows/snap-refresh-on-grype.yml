@@ -1,0 +1,67 @@
+name: Refresh Snap On Grype Release
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-snap:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Resolve grype version
+      id: grype
+      run: |
+        latest="$(python3 - <<'PY'
+import json
+import urllib.request
+
+req = urllib.request.Request(
+    "https://api.github.com/repos/anchore/grype/releases/latest",
+    headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "grummage-ci",
+    },
+)
+with urllib.request.urlopen(req, timeout=30) as response:
+    release = json.load(response)
+print(release["tag_name"].lstrip("v"))
+PY
+)"
+        current="$(grep -m1 'GRYPE_VERSION=' snap/snapcraft.yaml | cut -d= -f2)"
+        echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+        echo "current=${current}" >> "$GITHUB_OUTPUT"
+        if [ "${latest}" = "${current}" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Update snapcraft grype pin for this build
+      if: steps.grype.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      run: |
+        sed -i "s/^      GRYPE_VERSION=.*/      GRYPE_VERSION=${{ steps.grype.outputs.latest }}/" snap/snapcraft.yaml
+
+    - name: Build snap
+      if: steps.grype.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      id: build
+      uses: snapcore/action-build@v1
+
+    - name: Upload rebuilt snap
+      if: steps.grype.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: grummage-snap-grype-${{ steps.grype.outputs.latest }}
+        path: ${{ steps.build.outputs.snap }}
+
+    - name: No new grype release
+      if: steps.grype.outputs.changed != 'true' && github.event_name != 'workflow_dispatch'
+      run: |
+        echo "snapcraft.yaml already pins grype ${{ steps.grype.outputs.current }}; nothing to rebuild."

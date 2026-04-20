@@ -33,13 +33,22 @@ parts:
     python-packages:
       - .
     build-packages:
-      - python3-pip
-      - python3-setuptools
-      - curl
-    stage-packages:
-      - python3-setuptools
+      - ca-certificates
       - curl
     override-build: |
       craftctl default
-      # Install grype
-      curl -sSfL https://get.anchore.io/grype | sh -s -- -b $CRAFT_PART_INSTALL/usr/bin
+      GRYPE_VERSION=0.111.0
+      case "$CRAFT_ARCH_BUILD_FOR" in
+        amd64) GRYPE_ARCH=amd64 ;;
+        arm64) GRYPE_ARCH=arm64 ;;
+        ppc64el) GRYPE_ARCH=ppc64le ;;
+        s390x) GRYPE_ARCH=s390x ;;
+        *) echo "Unsupported snap architecture: $CRAFT_ARCH_BUILD_FOR" >&2; exit 1 ;;
+      esac
+      BASE_URL="https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}"
+      ARCHIVE="grype_${GRYPE_VERSION}_linux_${GRYPE_ARCH}.tar.gz"
+      curl -fsSLO "${BASE_URL}/grype_${GRYPE_VERSION}_checksums.txt"
+      curl -fsSLO "${BASE_URL}/${ARCHIVE}"
+      grep " ${ARCHIVE}$" "grype_${GRYPE_VERSION}_checksums.txt" | sha256sum -c -
+      tar -xzf "${ARCHIVE}" grype
+      install -Dm755 grype "$CRAFT_PART_INSTALL/usr/bin/grype"
