@@ -20,21 +20,21 @@ jobs:
       id: grype
       run: |
         latest="$(python3 - <<'PY'
-import json
-import urllib.request
+        import json
+        import urllib.request
 
-req = urllib.request.Request(
-    "https://api.github.com/repos/anchore/grype/releases/latest",
-    headers={
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "grummage-ci",
-    },
-)
-with urllib.request.urlopen(req, timeout=30) as response:
-    release = json.load(response)
-print(release["tag_name"].lstrip("v"))
-PY
-)"
+        req = urllib.request.Request(
+            "https://api.github.com/repos/anchore/grype/releases/latest",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "grummage-ci",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30) as response:
+            release = json.load(response)
+        print(release["tag_name"].lstrip("v"))
+        PY
+        )"
         current="$(grep -m1 'GRYPE_VERSION=' snap/snapcraft.yaml | cut -d= -f2)"
         echo "latest=${latest}" >> "$GITHUB_OUTPUT"
         echo "current=${current}" >> "$GITHUB_OUTPUT"
