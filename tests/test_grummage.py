@@ -90,5 +90,35 @@ class ResolveGrypeReleaseAssetTests(unittest.TestCase):
             )
 
 
+class AddDirectoryToPathTests(unittest.TestCase):
+    def test_adds_missing_directory_to_current_process_path(self):
+        with mock.patch("grummage.os.path.isdir", return_value=True):
+            with mock.patch.dict("grummage.os.environ", {"PATH": "/usr/bin:/bin"}, clear=True):
+                grummage.add_directory_to_path("/home/test/.local/bin")
+                self.assertEqual(
+                    grummage.os.environ["PATH"],
+                    "/home/test/.local/bin:/usr/bin:/bin",
+                )
+
+    def test_ignores_directory_already_in_path(self):
+        with mock.patch("grummage.os.path.isdir", return_value=True):
+            with mock.patch.dict(
+                "grummage.os.environ",
+                {"PATH": "/home/test/.local/bin:/usr/bin:/bin"},
+                clear=True,
+            ):
+                grummage.add_directory_to_path("/home/test/.local/bin")
+                self.assertEqual(
+                    grummage.os.environ["PATH"],
+                    "/home/test/.local/bin:/usr/bin:/bin",
+                )
+
+
+class OpenDebugLogTests(unittest.TestCase):
+    def test_invalid_debug_log_path_does_not_raise(self):
+        with mock.patch("builtins.open", side_effect=OSError("permission denied")):
+            self.assertIsNone(grummage.open_debug_log("/root/forbidden.log"))
+
+
 if __name__ == "__main__":
     unittest.main()

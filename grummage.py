@@ -155,6 +155,30 @@ def sha256_file(path):
             digest.update(chunk)
     return digest.hexdigest()
 
+
+def add_directory_to_path(directory):
+    """Prepend a directory to PATH for the current process if it exists."""
+    if not directory or not os.path.isdir(directory):
+        return
+
+    current_path = os.environ.get("PATH", "")
+    path_parts = current_path.split(os.pathsep) if current_path else []
+    if directory in path_parts:
+        return
+
+    os.environ["PATH"] = os.pathsep.join([directory, *path_parts]) if path_parts else directory
+
+
+def open_debug_log(debug_log_path):
+    """Open the optional debug log file, tolerating invalid paths."""
+    if not debug_log_path:
+        return None
+
+    try:
+        return open(debug_log_path, "a", encoding="utf-8")
+    except OSError:
+        return None
+
 def compare_versions(current, latest):
     """Compare two version strings. Returns True if latest is newer than current."""
     try:
@@ -218,8 +242,10 @@ def install_grype():
             shutil.move(extracted_binary, destination_binary)
             os.chmod(destination_binary, 0o755)
 
+        add_directory_to_path(install_dir)
         print(f"Grype v{version} successfully installed to {destination_binary}.")
-        print("Ensure ~/.local/bin is in your PATH before running grummage again.")
+        print("Added ~/.local/bin to PATH for this process.")
+        print("Ensure ~/.local/bin is in your shell PATH before running grummage again.")
     except Exception as e:
         print(f"Failed to install grype: {e}")
         sys.exit(1)
@@ -339,10 +365,7 @@ class Grummage(App):
         super().__init__()
         self.sbom_file = sbom_file
         self.vulnerability_report = None
-        self.debug_log_file = None
-        debug_log_path = os.environ.get("GRUMMAGE_DEBUG_LOG")
-        if debug_log_path:
-            self.debug_log_file = open(debug_log_path, "a", encoding="utf-8")
+        self.debug_log_file = open_debug_log(os.environ.get("GRUMMAGE_DEBUG_LOG"))
         self.selected_vuln_id = None
         self.selected_package_name = None
         self.selected_package_version = None
