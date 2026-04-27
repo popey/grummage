@@ -123,5 +123,49 @@ class OpenDebugLogTests(unittest.TestCase):
             self.assertIsNone(grummage.open_debug_log("/root/forbidden.log"))
 
 
+class OnKeyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_non_search_binding_keys_do_not_trigger_duplicate_actions(self):
+        app = grummage.Grummage()
+        app.load_tree_by_package_name = mock.Mock()
+        app.load_tree_by_type = mock.Mock()
+        app.load_tree_by_vulnerability = mock.Mock()
+        app.load_tree_by_severity = mock.Mock()
+        app.explain_vulnerability_worker = mock.Mock()
+        app.status_bar = mock.Mock()
+        app.notify = mock.Mock()
+        app.search_results = []
+        app.selected_vuln_id = "CVE-2026-0001"
+        app.selected_package_name = "demo"
+        app.selected_package_version = "1.0"
+        app.detailed_text = "details"
+
+        for key in ("p", "t", "v", "s", "e"):
+            with self.subTest(key=key):
+                event = types.SimpleNamespace(key=key)
+                await app.on_key(event)
+
+        app.load_tree_by_package_name.assert_not_called()
+        app.load_tree_by_type.assert_not_called()
+        app.load_tree_by_vulnerability.assert_not_called()
+        app.load_tree_by_severity.assert_not_called()
+        app.explain_vulnerability_worker.assert_not_called()
+        app.status_bar.update.assert_not_called()
+        app.notify.assert_not_called()
+
+    async def test_search_navigation_keys_are_still_handled(self):
+        app = grummage.Grummage()
+        app.find_next = mock.Mock()
+        app.find_previous = mock.Mock()
+        app.notify = mock.Mock()
+        app.search_results = ["match"]
+
+        await app.on_key(types.SimpleNamespace(key="n"))
+        await app.on_key(types.SimpleNamespace(key="N"))
+
+        app.find_next.assert_called_once_with()
+        app.find_previous.assert_called_once_with()
+        app.notify.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

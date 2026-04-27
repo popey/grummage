@@ -744,7 +744,7 @@ class Grummage(App):
 
 
     async def on_key(self, event):
-        """Handle key press events to switch views and search."""
+        """Handle dedicated search-navigation keys not covered by BINDINGS."""
         key = event.key
 
         # Handle search navigation (n and N are dedicated to search)
@@ -762,24 +762,6 @@ class Grummage(App):
             else:
                 self.notify("No active search. Press '/' to search.", severity="information")
             return
-
-        # Handle view switching and other commands
-        key_lower = key.lower()
-        if key_lower == "p":
-            self.load_tree_by_package_name()
-            self.status_bar.update("Status: Viewing by package name.")
-        elif key_lower == "t":
-            self.load_tree_by_type()
-            self.status_bar.update("Status: Viewing by package type.")
-        elif key_lower == "v":
-            self.load_tree_by_vulnerability()
-            self.status_bar.update("Status: Viewing by vulnerability ID.")
-        elif key_lower == "s":
-            self.load_tree_by_severity()
-            self.status_bar.update("Status: Viewing by severity.")
-        elif key_lower == "e" and self.selected_vuln_id and self.detailed_text:
-             self.status_bar.update(f"Status: Explaining {self.selected_vuln_id} in {self.selected_package_name} ({self.selected_package_version})")
-             self.explain_vulnerability_worker(self.selected_vuln_id, self.detailed_text)
 
 
     async def on_tree_node_selected(self, event):
