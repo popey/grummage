@@ -1,3 +1,4 @@
+import os
 import sys
 import types
 import unittest
@@ -93,24 +94,26 @@ class ResolveGrypeReleaseAssetTests(unittest.TestCase):
 class AddDirectoryToPathTests(unittest.TestCase):
     def test_adds_missing_directory_to_current_process_path(self):
         with mock.patch("grummage.os.path.isdir", return_value=True):
-            with mock.patch.dict("grummage.os.environ", {"PATH": "/usr/bin:/bin"}, clear=True):
+            initial_path = os.pathsep.join(["/usr/bin", "/bin"])
+            with mock.patch.dict("grummage.os.environ", {"PATH": initial_path}, clear=True):
                 grummage.add_directory_to_path("/home/test/.local/bin")
                 self.assertEqual(
                     grummage.os.environ["PATH"],
-                    "/home/test/.local/bin:/usr/bin:/bin",
+                    os.pathsep.join(["/home/test/.local/bin", "/usr/bin", "/bin"]),
                 )
 
     def test_ignores_directory_already_in_path(self):
         with mock.patch("grummage.os.path.isdir", return_value=True):
+            existing_path = os.pathsep.join(["/home/test/.local/bin", "/usr/bin", "/bin"])
             with mock.patch.dict(
                 "grummage.os.environ",
-                {"PATH": "/home/test/.local/bin:/usr/bin:/bin"},
+                {"PATH": existing_path},
                 clear=True,
             ):
                 grummage.add_directory_to_path("/home/test/.local/bin")
                 self.assertEqual(
                     grummage.os.environ["PATH"],
-                    "/home/test/.local/bin:/usr/bin:/bin",
+                    existing_path,
                 )
 
 
