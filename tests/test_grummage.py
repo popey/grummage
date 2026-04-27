@@ -123,6 +123,39 @@ class OpenDebugLogTests(unittest.TestCase):
             self.assertIsNone(grummage.open_debug_log("/root/forbidden.log"))
 
 
+class RunGrypeAnalysisTests(unittest.TestCase):
+    def test_temp_file_is_cleaned_up_when_subprocess_raises(self):
+        app = grummage.Grummage()
+        app.app = mock.Mock()
+        app.update_loading_status = mock.Mock()
+        app.debug_log = mock.Mock()
+        app.notify = mock.Mock()
+        app.pop_screen = mock.Mock()
+        app.on_grype_complete = mock.Mock()
+
+        temp_context = mock.MagicMock()
+        temp_file = mock.MagicMock()
+        temp_file.name = "/tmp/grummage-test.json"
+        temp_context.__enter__.return_value = temp_file
+        temp_context.__exit__.return_value = False
+
+        with mock.patch("grummage.tempfile.NamedTemporaryFile", return_value=temp_context):
+            with mock.patch("grummage.subprocess.run", side_effect=FileNotFoundError("grype missing")):
+                with mock.patch("grummage.os.path.exists", return_value=True):
+                    with mock.patch("grummage.os.unlink") as unlink_mock:
+                        app.run_grype_analysis({"sbom": "data"})
+
+        unlink_mock.assert_called_once_with("/tmp/grummage-test.json")
+        app.app.call_from_thread.assert_any_call(app.update_loading_status, "Error running grype")
+        app.app.call_from_thread.assert_any_call(
+            app.notify,
+            "Error running grype: grype missing",
+            severity="error",
+        )
+        app.app.call_from_thread.assert_any_call(app.pop_screen)
+        app.on_grype_complete.assert_not_called()
+
+
 class OnKeyTests(unittest.IsolatedAsyncioTestCase):
     async def test_non_search_binding_keys_do_not_trigger_duplicate_actions(self):
         app = grummage.Grummage()
