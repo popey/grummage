@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 import argparse
+import hashlib
 import json
 import os
+import platform
+import re
+import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
-import re
 import urllib.request
 
 from textual import work
@@ -16,15 +20,31 @@ from textual.widgets import Tree, Footer, Static, Label, LoadingIndicator, Input
 from textual.widgets import Markdown
 from textual.worker import get_current_worker
 
+GRYPE_RELEASES_API = "https://api.github.com/repos/anchore/grype/releases/latest"
+GRYPE_RELEASES_DOWNLOAD = "https://github.com/anchore/grype/releases/download"
+GRYPE_USER_AGENT = "grummage"
+
+
 def format_urls_as_markdown(text):
-    """Convert plain URLs in text to markdown links, skipping already formatted markdown links."""
-    # Skip URLs that are already in markdown format [text](url)
-    if re.search(r'\[.+?\]\(.+?\)', text):
-        return text
-    
-    # Convert plain URLs to markdown links
+    """Convert plain URLs in text to markdown links without double-wrapping markdown links."""
+    markdown_links = []
+
+    def protect_markdown_link(match):
+        markdown_links.append(match.group(0))
+        return f"__GRUMMAGE_MARKDOWN_LINK_{len(markdown_links) - 1}__"
+
+    protected_text = re.sub(r"\[[^\]]+\]\(https?://[^)]+\)", protect_markdown_link, text)
+
     url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+(?:/[^)\s]*)?'
-    return re.sub(url_pattern, lambda m: f'[{m.group()}]({m.group()})', text)
+    converted_text = re.sub(url_pattern, lambda m: f'[{m.group()}]({m.group()})', protected_text)
+
+    for index, markdown_link in enumerate(markdown_links):
+        converted_text = converted_text.replace(
+            f"__GRUMMAGE_MARKDOWN_LINK_{index}__",
+            markdown_link,
+        )
+
+    return converted_text
 
 def is_running_in_snap():
     """Check if grummage is running inside a snap package."""
@@ -32,11 +52,7 @@ def is_running_in_snap():
 
 def is_grype_installed():
     """Check if the grype binary is available in the system's PATH."""
-    return any(
-        os.path.isfile(os.path.join(path, "grype"))
-        and os.access(os.path.join(path, "grype"), os.X_OK)
-        for path in os.environ["PATH"].split(os.pathsep)
-    )
+    return shutil.which("grype") is not None
 
 def get_grype_version():
     """Get the installed grype version."""
@@ -58,17 +74,109 @@ def get_grype_version():
         return None
 
 def get_latest_grype_version():
-    """Check the latest grype version from anchore toolbox."""
+    """Get the latest grype version from the upstream GitHub release."""
     try:
         req = urllib.request.Request(
-            "https://toolbox-data.anchore.io/grype/releases/latest/VERSION",
-            headers={"User-Agent": "grummage"}
+            GRYPE_RELEASES_API,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": GRYPE_USER_AGENT,
+            },
         )
         with urllib.request.urlopen(req, timeout=5) as response:
-            version = response.read().decode('utf-8').strip()
-            # Remove 'v' prefix if present
-            return version.lstrip('v')
+            release = json.load(response)
+            return release["tag_name"].lstrip("v")
     except Exception:
+        return None
+
+
+def get_latest_grype_release():
+    """Get the latest grype release payload from GitHub."""
+    req = urllib.request.Request(
+        GRYPE_RELEASES_API,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": GRYPE_USER_AGENT,
+        },
+    )
+    with urllib.request.urlopen(req, timeout=10) as response:
+        return json.load(response)
+
+
+def resolve_grype_release_asset(version, system_name=None, machine_name=None):
+    """Resolve the release archive and binary name for the current platform."""
+    system_name = system_name or platform.system()
+    machine_name = (machine_name or platform.machine()).lower()
+
+    arch_map = {
+        ("linux", "x86_64"): ("linux", "amd64", "grype"),
+        ("linux", "amd64"): ("linux", "amd64", "grype"),
+        ("linux", "aarch64"): ("linux", "arm64", "grype"),
+        ("linux", "arm64"): ("linux", "arm64", "grype"),
+        ("darwin", "x86_64"): ("darwin", "amd64", "grype"),
+        ("darwin", "amd64"): ("darwin", "amd64", "grype"),
+        ("darwin", "arm64"): ("darwin", "arm64", "grype"),
+    }
+
+    target = arch_map.get((system_name.lower(), machine_name))
+    if not target:
+        raise RuntimeError(
+            f"Automatic grype installation is not supported on {system_name}/{machine_name}."
+        )
+
+    platform_name, arch_name, binary_name = target
+    archive_name = f"grype_{version}_{platform_name}_{arch_name}.tar.gz"
+    checksum_name = f"grype_{version}_checksums.txt"
+    return archive_name, checksum_name, binary_name
+
+
+def download_file(url, destination):
+    """Download a URL to a local file."""
+    req = urllib.request.Request(url, headers={"User-Agent": GRYPE_USER_AGENT})
+    with urllib.request.urlopen(req, timeout=30) as response, open(destination, "wb") as output:
+        output.write(response.read())
+
+
+def read_expected_sha256(checksum_path, archive_name):
+    """Read the expected sha256 for an archive from a checksum file."""
+    with open(checksum_path, "r", encoding="utf-8") as checksum_file:
+        for line in checksum_file:
+            parts = line.strip().split()
+            if len(parts) >= 2 and parts[-1].endswith(archive_name):
+                return parts[0]
+    raise RuntimeError(f"Could not find checksum entry for {archive_name}.")
+
+
+def sha256_file(path):
+    """Calculate a file's sha256 digest."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as file_handle:
+        for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def add_directory_to_path(directory):
+    """Prepend a directory to PATH for the current process if it exists."""
+    if not directory or not os.path.isdir(directory):
+        return
+
+    current_path = os.environ.get("PATH", "")
+    path_parts = current_path.split(os.pathsep) if current_path else []
+    if directory in path_parts:
+        return
+
+    os.environ["PATH"] = os.pathsep.join([directory, *path_parts]) if path_parts else directory
+
+
+def open_debug_log(debug_log_path):
+    """Open the optional debug log file, tolerating invalid paths."""
+    if not debug_log_path:
+        return None
+
+    try:
+        return open(debug_log_path, "a", encoding="utf-8")
+    except OSError:
         return None
 
 def compare_versions(current, latest):
@@ -95,16 +203,50 @@ def prompt_install_grype():
     return response == "y"
 
 def install_grype():
-    """Run the one-liner command to install grype."""
+    """Download and install the latest grype binary without invoking a shell pipeline."""
     try:
-        # Use shell=True to execute the one-liner properly
-        subprocess.run(
-            "curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin",
-            shell=True,
-            check=True,
-        )
-        print("Grype successfully installed.")
-    except subprocess.CalledProcessError as e:
+        release = get_latest_grype_release()
+        version = release["tag_name"].lstrip("v")
+        archive_name, checksum_name, binary_name = resolve_grype_release_asset(version)
+        assets = {asset["name"]: asset["browser_download_url"] for asset in release.get("assets", [])}
+
+        if archive_name not in assets or checksum_name not in assets:
+            raise RuntimeError(f"Could not find release assets for grype v{version}.")
+
+        install_dir = os.path.expanduser("~/.local/bin")
+        os.makedirs(install_dir, exist_ok=True)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = os.path.join(temp_dir, archive_name)
+            checksum_path = os.path.join(temp_dir, checksum_name)
+            download_file(assets[archive_name], archive_path)
+            download_file(assets[checksum_name], checksum_path)
+
+            expected_sha256 = read_expected_sha256(checksum_path, archive_name)
+            actual_sha256 = sha256_file(archive_path)
+            if actual_sha256 != expected_sha256:
+                raise RuntimeError("Downloaded grype archive failed checksum verification.")
+
+            with tarfile.open(archive_path, "r:gz") as archive:
+                member = next(
+                    (item for item in archive.getmembers() if os.path.basename(item.name) == binary_name),
+                    None,
+                )
+                if member is None:
+                    raise RuntimeError(f"Archive did not contain {binary_name}.")
+                member.name = binary_name
+                archive.extract(member, temp_dir)
+
+            extracted_binary = os.path.join(temp_dir, binary_name)
+            destination_binary = os.path.join(install_dir, "grype")
+            shutil.move(extracted_binary, destination_binary)
+            os.chmod(destination_binary, 0o755)
+
+        add_directory_to_path(install_dir)
+        print(f"Grype v{version} successfully installed to {destination_binary}.")
+        print("Added ~/.local/bin to PATH for this process.")
+        print("Ensure ~/.local/bin is in your shell PATH before running grummage again.")
+    except Exception as e:
         print(f"Failed to install grype: {e}")
         sys.exit(1)
 
@@ -223,7 +365,7 @@ class Grummage(App):
         super().__init__()
         self.sbom_file = sbom_file
         self.vulnerability_report = None
-        self.debug_log_file = open("debug_log.txt", "w")
+        self.debug_log_file = open_debug_log(os.environ.get("GRUMMAGE_DEBUG_LOG"))
         self.selected_vuln_id = None
         self.selected_package_name = None
         self.selected_package_version = None
@@ -239,8 +381,9 @@ class Grummage(App):
 
     def debug_log(self, message):
         """Helper method to write debug messages to log file."""
-        self.debug_log_file.write(message + "\n")
-        self.debug_log_file.flush()  # Ensure immediate write
+        if self.debug_log_file is not None:
+            self.debug_log_file.write(message + "\n")
+            self.debug_log_file.flush()
 
     async def on_mount(self):
         self.debug_log("on_mount: Starting application setup")
@@ -388,6 +531,7 @@ class Grummage(App):
 
     def run_grype_analysis(self, sbom_json):
         """Run grype analysis on SBOM (called from worker thread)."""
+        temp_file_path = None
         try:
             self.app.call_from_thread(self.update_loading_status, "Analyzing SBOM with grype...")
             self.debug_log("Starting grype analysis")
@@ -403,12 +547,6 @@ class Grummage(App):
                 capture_output=True,
                 text=True
             )
-
-            # Clean up temp file
-            try:
-                os.unlink(temp_file_path)
-            except:
-                pass
 
             if result.returncode != 0:
                 self.debug_log(f"Grype encountered an error: {result.stderr}")
@@ -428,6 +566,9 @@ class Grummage(App):
             self.app.call_from_thread(self.update_loading_status, "Error running grype")
             self.app.call_from_thread(self.notify, f"Error running grype: {e}", severity="error")
             self.app.call_from_thread(self.pop_screen)
+        finally:
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
 
     async def load_sbom(self):
         """Initiate SBOM loading and analysis."""
@@ -603,7 +744,7 @@ class Grummage(App):
 
 
     async def on_key(self, event):
-        """Handle key press events to switch views and search."""
+        """Handle dedicated search-navigation keys not covered by BINDINGS."""
         key = event.key
 
         # Handle search navigation (n and N are dedicated to search)
@@ -621,24 +762,6 @@ class Grummage(App):
             else:
                 self.notify("No active search. Press '/' to search.", severity="information")
             return
-
-        # Handle view switching and other commands
-        key_lower = key.lower()
-        if key_lower == "p":
-            self.load_tree_by_package_name()
-            self.status_bar.update("Status: Viewing by package name.")
-        elif key_lower == "t":
-            self.load_tree_by_type()
-            self.status_bar.update("Status: Viewing by package type.")
-        elif key_lower == "v":
-            self.load_tree_by_vulnerability()
-            self.status_bar.update("Status: Viewing by vulnerability ID.")
-        elif key_lower == "s":
-            self.load_tree_by_severity()
-            self.status_bar.update("Status: Viewing by severity.")
-        elif key_lower == "e" and self.selected_vuln_id and self.detailed_text:
-             self.status_bar.update(f"Status: Explaining {self.selected_vuln_id} in {self.selected_package_name} ({self.selected_package_version})")
-             self.explain_vulnerability_worker(self.selected_vuln_id, self.detailed_text)
 
 
     async def on_tree_node_selected(self, event):
@@ -759,7 +882,8 @@ class Grummage(App):
 
     def on_unmount(self):
         """Close the log file when the application exits."""
-        self.debug_log_file.close()
+        if self.debug_log_file is not None:
+            self.debug_log_file.close()
 
     @work(thread=True, exclusive=True)
     def explain_vulnerability_worker(self, vuln_id, detailed_text):
@@ -768,27 +892,15 @@ class Grummage(App):
             self.app.call_from_thread(self.notify, f"Requesting explanation for {vuln_id}...", severity="information")
             self.debug_log(f"Starting grype explain for {vuln_id}")
 
-            # First, run Grype on the user-provided SBOM file to get the JSON report
-            analyze_result = subprocess.run(
-                ["grype", self.sbom_file, "-o", "json"],
-                capture_output=True,
-                text=True
-            )
-
-            # Check if the SBOM analysis was successful
-            if analyze_result.returncode != 0:
-                self.debug_log(f"Error analyzing SBOM for explanation: {analyze_result.stderr}")
-                self.app.call_from_thread(
-                    self.details_display.update,
-                    f"# Error\n\nError analyzing SBOM: {analyze_result.stderr}"
-                )
-                self.app.call_from_thread(self.notify, "Failed to analyze SBOM for explanation", severity="error")
+            if not self.vulnerability_report:
+                self.app.call_from_thread(self.details_display.update, "# Error\n\nNo vulnerability report is loaded.")
+                self.app.call_from_thread(self.notify, "No vulnerability report is loaded", severity="error")
                 return
 
             # Run Grype's explain command with the specific vulnerability ID
             explain_result = subprocess.run(
                 ["grype", "explain", "--id", vuln_id],
-                input=analyze_result.stdout,  # Pass the JSON output from the first run as input
+                input=json.dumps(self.vulnerability_report),
                 capture_output=True,
                 text=True
             )
