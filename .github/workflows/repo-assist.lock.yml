@@ -1874,6 +1874,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" != "schedule" ]]; then exit 0; fi
           COUNT=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --search 'in:title "[repo-assist]"' --json number --jq 'length')
           [[ "$COUNT" -lt "$MAX_OPEN_PRS" ]]
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   push_repo_memory:
     needs:
