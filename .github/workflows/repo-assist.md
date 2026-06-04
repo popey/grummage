@@ -1,6 +1,7 @@
 ---
-engine: copilot
-model: gpt-5-mini
+engine:
+  id: copilot
+  model: gpt-5-mini
 description: |
   A friendly repository assistant that runs regularly (twice a day by default) to assist maintainers.
   Can also be triggered on-demand via '/repo-assist <instructions>' to perform specific tasks.
