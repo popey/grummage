@@ -901,7 +901,9 @@ class Grummage(App):
                 return
 
             # Left/Right - collapse/expand current node when possible
-            sel = getattr(self.tree_view, "selected_node", None)
+            sel = getattr(self.tree_view, "cursor_node", None)
+            if sel is None:
+                sel = getattr(self.tree_view, "selected_node", None)
             if sel is None:
                 return
             if key_name == "left" and hasattr(sel, "collapse"):
