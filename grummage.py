@@ -880,6 +880,38 @@ class Grummage(App):
         )
         self.debug_log(f"Navigated to search result {self.search_index + 1}/{len(self.search_results)}")
 
+    def action_simulate_key(self, key_name):
+        """Simulate simple navigation keys (used by BINDINGS). Non-fatal if Tree API varies between Textual versions."""
+        try:
+            if not hasattr(self, "tree_view") or self.tree_view is None:
+                return
+
+            # Down / Up navigation
+            if key_name == "down":
+                if hasattr(self.tree_view, "select_next"):
+                    self.tree_view.select_next()
+                elif hasattr(self.tree_view, "cursor_down"):
+                    self.tree_view.cursor_down()
+                return
+            if key_name == "up":
+                if hasattr(self.tree_view, "select_previous"):
+                    self.tree_view.select_previous()
+                elif hasattr(self.tree_view, "cursor_up"):
+                    self.tree_view.cursor_up()
+                return
+
+            # Left/Right - collapse/expand current node when possible
+            sel = getattr(self.tree_view, "selected_node", None)
+            if sel is None:
+                return
+            if key_name == "left" and hasattr(sel, "collapse"):
+                sel.collapse()
+            elif key_name == "right" and hasattr(sel, "expand"):
+                sel.expand()
+
+        except Exception as e:
+            self.debug_log(f"simulate_key action error: {e}")
+
     def on_unmount(self):
         """Close the log file when the application exits."""
         if self.debug_log_file is not None:
