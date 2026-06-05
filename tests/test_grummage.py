@@ -200,5 +200,36 @@ class OnKeyTests(unittest.IsolatedAsyncioTestCase):
         app.notify.assert_not_called()
 
 
+class SimulateKeyTests(unittest.TestCase):
+    def test_left_collapses_cursor_node(self):
+        app = grummage.Grummage()
+        cursor_node = mock.Mock()
+        app.tree_view = types.SimpleNamespace(cursor_node=cursor_node)
+
+        app.action_simulate_key("left")
+
+        cursor_node.collapse.assert_called_once_with()
+        cursor_node.expand.assert_not_called()
+
+    def test_right_expands_cursor_node(self):
+        app = grummage.Grummage()
+        cursor_node = mock.Mock()
+        app.tree_view = types.SimpleNamespace(cursor_node=cursor_node)
+
+        app.action_simulate_key("right")
+
+        cursor_node.expand.assert_called_once_with()
+        cursor_node.collapse.assert_not_called()
+
+    def test_left_falls_back_to_selected_node(self):
+        app = grummage.Grummage()
+        selected_node = mock.Mock()
+        app.tree_view = types.SimpleNamespace(cursor_node=None, selected_node=selected_node)
+
+        app.action_simulate_key("left")
+
+        selected_node.collapse.assert_called_once_with()
+
+
 if __name__ == "__main__":
     unittest.main()
