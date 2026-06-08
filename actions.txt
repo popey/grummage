@@ -1,0 +1,7 @@
+2026-06-08T14:08:28Z - Repo Assist run 27143331932 actions:
+- Created branch: repo-assist/fix-issue-34-on_key-guard
+- Committed: grummage.py (guard in on_key to ignore BINDINGS keys)
+- Created draft PR: repo-assist/fix-issue-34-on_key-guard (closes #34)
+- Commented on issue #34 linking to PR
+
+Notes: Could not run pytest in runner (pytest not installed). Reviewer requested to run tests and smoke-test interactive navigation.
