@@ -1,10 +1,11 @@
 {
-  "last_run": "2026-06-12T13:49:38Z",
+  "last_run": "2026-06-13T01:34:19Z",
   "actions": [
     {"type":"branch","branch":"repo-assist/improve-testing-add-pytest-2026-06-08","description":"Added pytest to project.optional-dependencies.dev and committed"},
     {"type":"test","result":"13 passed, 5 subtests passed"},
     {"type":"comment","issue":34,"description":"Suggested guarding keys in on_key to avoid duplicate actions"},
     {"type":"branch","branch":"repo-assist/improve-compare-versions-2026-06-12","description":"Improve compare_versions robustness (draft PR created)"},
-    {"type":"issue_update","issue":52,"description":"Updated Monthly Activity 2026-06 issue"}
+    {"type":"issue_update","issue":52,"description":"Updated Monthly Activity 2026-06 issue"},
+    {"type":"branch","branch":"repo-assist/fix-issue-34-on_key-guard","description":"Fix on_key duplicate actions - draft PR created","issue":34,"timestamp":"2026-06-13T01:34:19Z"}
   ]
 }
