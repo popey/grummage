@@ -1,0 +1,5 @@
+Repo Assist run 2026-07-10
+- Commented on issue #102 with token-budget mitigation guidance.
+- Hardened compare_versions to handle suffixed/prerelease versions and added regression tests.
+- Requested a draft PR from branch repo-assist/improve-compare-versions-2026-07-10.
+- Updated monthly activity issue #83 with the run history and #102 pending actions.
