@@ -1,5 +1,5 @@
 {
-  "last_run": "2026-07-12T14:15:28Z",
+  "last_run": "2026-07-13T04:22:54Z",
   "actions": [
     {
       "type": "comment",
@@ -29,6 +29,11 @@
       "type": "issue",
       "number": 83,
       "description": "Updated July monthly summary"
+    },
+    {
+      "type": "comment",
+      "number": 123,
+      "description": "Added workflow token-budget mitigation guidance comment"
     }
   ]
 }
