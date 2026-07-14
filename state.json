@@ -1,19 +1,33 @@
 {
-  "last_run": "2026-07-13T15:40:18Z",
+  "last_run": "2026-07-14T03:48:58Z",
   "actions": [
     {
+      "type": "comment",
+      "issue": 65,
+      "description": "CI cache workflow upgrade"
+    },
+    {
       "type": "branch",
-      "branch": "repo-assist/improve-key-bindings-2026-07-13",
-      "description": "fixed tree and explain bindings"
+      "branch": "repo-assist/improve-tests-simulate-key-2026-07-14",
+      "description": "added simulate_key navigation tests"
+    },
+    {
+      "type": "branch",
+      "branch": "repo-assist/eng-cache-pip-test-2026-07-14",
+      "description": "cached pip in test workflow"
     },
     {
       "type": "test",
-      "result": "16 tests passed"
+      "result": "15 tests passed on simulate_key branch"
+    },
+    {
+      "type": "test",
+      "result": "13 tests passed on CI cache branch"
     },
     {
       "type": "issue",
       "number": 83,
-      "description": "monthly summary pending update"
+      "description": "monthly summary updated"
     }
   ]
 }
