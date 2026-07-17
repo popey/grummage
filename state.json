@@ -1,33 +1,24 @@
 {
-  "last_run": "2026-07-16T14:37:45Z",
+  "last_run": "2026-07-17T14:16:43Z",
   "actions": [
+    {
+      "type": "comment",
+      "issue": 145,
+      "description": "effective-token budget guidance"
+    },
     {
       "type": "comment",
       "issue": 57,
       "description": "compare_versions suffix handling"
     },
     {
-      "type": "comment",
-      "issue": 89,
-      "description": "URL punctuation handling"
-    },
-    {
       "type": "branch",
-      "branch": "repo-assist/fix-compare-versions-suffix-2026-07-16",
+      "branch": "repo-assist/fix-compare-versions-suffix-2026-07-17",
       "description": "hardened compare_versions for suffix-bearing versions and added regression tests"
     },
     {
-      "type": "branch",
-      "branch": "repo-assist/improve-url-punctuation-2026-07-16",
-      "description": "kept trailing punctuation outside markdown links and added regression tests"
-    },
-    {
       "type": "test",
-      "result": "15 tests passed on the compare_versions fix branch"
-    },
-    {
-      "type": "test",
-      "result": "14 tests passed on the URL punctuation branch"
+      "result": "16 tests passed on the compare_versions suffix fix branch"
     },
     {
       "type": "issue",
