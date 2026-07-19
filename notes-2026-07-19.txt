@@ -1,7 +1,1 @@
-Run 2026-07-19 04:07 UTC
-- Selected tasks: 3 (Issue Investigation and Fix), 4 (Engineering Investments), 2 (Issue Investigation and Comment)
-- Substituted Task 3 with Task 2 because no open bug/help wanted issue was available for a direct code fix.
-- Commented on #152 with workflow-layer ET-budget guidance.
-- Updated .github/workflows/test.yml and .github/workflows/release.yml to actions/setup-python@v5 with pip caching.
-- Ran tests: 13 passed.
-- Updated Monthly Activity issue #83.
+2026-07-19: comment on #110; combined compare_versions + CI maintenance; 15 tests passed; monthly summary updated.

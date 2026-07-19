@@ -1,19 +1,19 @@
 {
-  "last_run": "2026-07-19T04:07:20Z",
+  "last_run": "2026-07-19T14:12:11Z",
   "actions": [
     {
       "type": "comment",
-      "issue": 152,
-      "description": "workflow-layer ET budget guidance"
+      "issue": 110,
+      "description": "workflow-only maintenance update"
     },
     {
       "type": "branch",
-      "branch": "repo-assist/eng-python-ci-v5-2026-07-19",
-      "description": "updated test and release workflows to setup-python v5 with pip caching"
+      "branch": "repo-assist/eng-version-ci-2026-07-19",
+      "description": "hardened version comparison and refreshed CI workflows"
     },
     {
       "type": "test",
-      "result": "13 tests passed after CI workflow update"
+      "result": "15 tests passed after compare_versions and workflow updates"
     },
     {
       "type": "issue",
