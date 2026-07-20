@@ -3,3 +3,5 @@
 2026-07-17: comments on #145/#57; compare_versions branch; tests passed; monthly summary updated.
 2026-07-16: comment on #57/#89; suffix fix and URL punctuation branches; tests passed; monthly summary updated.
 2026-07-13: commented on #123; monthly summary updated.
+2026-07-20: added compare_versions tests; 15 tests passed; monthly summary updated.
+2026-07-20: commented on #51; added compare_versions tests; 15 tests passed; monthly summary updated.
